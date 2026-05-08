@@ -1,0 +1,35 @@
+# Benchmark configuration examples
+# Override via: llm-grammar-bench run --config my-config.yaml
+
+models:
+  openai_gpt4o:
+    backend: openai
+    model: gpt-4o
+    temperature: 0.0
+    max_tokens: 512
+
+  anthropic_claude:
+    backend: anthropic
+    model: claude-3-opus-20240229
+    temperature: 0.0
+    max_tokens: 512
+
+  hf_t5_small:
+    backend: huggingface
+    model: google/flan-t5-small
+    temperature: 0.0
+    max_tokens: 128
+
+datasets:
+  bea2019:
+    type: bea2019
+    split: validation
+    cefr_filter: null  # null = all levels; or [A, B, C, N]
+
+evaluation:
+  metrics:
+    - errant
+    - gleu
+    - bertscore
+  beta: 0.5
+  output_dir: results/

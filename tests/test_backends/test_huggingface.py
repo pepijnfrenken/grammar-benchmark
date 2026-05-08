@@ -1,0 +1,17 @@
+"""Tests for the HuggingFace backend."""
+
+
+def test_huggingface_backend_creation() -> None:
+    from llm_grammar_bench.backends.huggingface import HuggingFaceBackend
+
+    backend = HuggingFaceBackend(model="t5-small", device="cpu")
+    assert backend.model_id == "hf:t5-small"
+    assert backend.metadata["provider"] == "huggingface"
+
+
+def test_huggingface_backend_metadata() -> None:
+    from llm_grammar_bench.backends.huggingface import HuggingFaceBackend
+
+    backend = HuggingFaceBackend(model="google/flan-t5-base")
+    assert backend.metadata["model"] == "google/flan-t5-base"
+    assert "device" in backend.metadata
