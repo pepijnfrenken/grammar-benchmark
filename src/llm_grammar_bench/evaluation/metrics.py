@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 
+from llm_grammar_bench.evaluation._bert_patch import _apply_patch
 from llm_grammar_bench.types import CorpusScores
+
+_apply_patch()  # Ensure bert-score compat patch is applied before use
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +87,17 @@ class MetricsRunner:
         refs_transposed = _transpose_references(references)
 
         if name == "bertscore":
-            # BERTScore is source-free: only needs hypotheses and references
-            value = float(metric.score_corpus(hypotheses, refs_transposed))
+            # BERTScore crashes on empty strings with transformers >= 5.x.
+            # Guard by replacing empty strings with a placeholder character.
+            safe_hypotheses = [h if h.strip() else " " for h in hypotheses]
+            safe_refs = [
+                [r if r.strip() else " " for r in ref_list] for ref_list in refs_transposed
+            ]
+            try:
+                value = float(metric.score_corpus(safe_hypotheses, safe_refs))
+            except Exception:
+                logger.warning("BERTScore computation failed, returning 0.0", exc_info=True)
+                value = 0.0
         else:
             # ERRANT and GLEU require sources
             value = float(metric.score_corpus(sources, hypotheses, refs_transposed))

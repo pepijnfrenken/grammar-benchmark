@@ -51,8 +51,10 @@ class HuggingFaceBackend(BaseBackend):
 
         logger.info("Loading model '%s' on %s...", self._model_name, self._device)
 
+        # fmt: off
         try:
-            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer  # type: ignore
+            from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForSeq2SeqLM, AutoTokenizer  # type: ignore  # noqa: E501, I001
+        # fmt: on
         except ImportError:
             raise ImportError(
                 "HuggingFace backend requires transformers and torch. "
@@ -60,10 +62,21 @@ class HuggingFaceBackend(BaseBackend):
             ) from None
 
         self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        self._model = AutoModelForSeq2SeqLM.from_pretrained(self._model_name).to(self._device)
-        self._model.eval()
-        self._is_encoder_decoder = getattr(self._model.config, "is_encoder_decoder", False)
 
+        # Detect model architecture from config before loading weights
+        config = AutoConfig.from_pretrained(self._model_name)
+        self._is_encoder_decoder = getattr(config, "is_encoder_decoder", True)
+
+        if self._is_encoder_decoder:
+            self._model = AutoModelForSeq2SeqLM.from_pretrained(self._model_name).to(self._device)
+        else:
+            causal_model: Any = AutoModelForCausalLM.from_pretrained(self._model_name)
+            self._model = causal_model.to(self._device)
+            tok: Any = self._tokenizer
+            if tok.pad_token is None:
+                tok.pad_token = tok.eos_token
+
+        self._model.eval()
         logger.info("Model '%s' loaded successfully.", self._model_name)
 
     def correct(self, text: str, **kwargs: Any) -> str:
@@ -97,17 +110,28 @@ class HuggingFaceBackend(BaseBackend):
                 max_length=self._max_input_tokens,
             ).to(self._device)
 
-            with torch.no_grad():
-                outputs = self._model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temperature if temperature > 0 else None,
-                    do_sample=temperature > 0,
-                    num_beams=4,
-                    early_stopping=True,
-                )
+            generate_kwargs: dict[str, Any] = {
+                "max_new_tokens": max_new_tokens,
+                "temperature": temperature if temperature > 0 else None,
+                "do_sample": temperature > 0,
+                "num_beams": 4,
+                "early_stopping": True,
+            }
 
-            correction = self._tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+            if not self._is_encoder_decoder:
+                generate_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
+
+            with torch.no_grad():
+                outputs = self._model.generate(**inputs, **generate_kwargs)
+
+            if self._is_encoder_decoder:
+                correction = self._tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+            else:
+                # Decoder-only: strip the input prompt from the output
+                input_len = inputs.input_ids.shape[1]
+                correction = self._tokenizer.decode(
+                    outputs[0][input_len:], skip_special_tokens=True
+                ).strip()
 
             self._cache.set(self.model_id, text, correction)
             return correction

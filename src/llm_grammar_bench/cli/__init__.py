@@ -104,8 +104,8 @@ def run(
             click.echo(f"  {cefr}: {', '.join(parts)}")
 
     # Serialize results
-    serialize_results(result, output)
-    click.echo(f"Full results saved to: {output}")
+    filepath = serialize_results(result, output)
+    click.echo(f"Full results saved to: {filepath}")
 
 
 def _parse_model_spec(spec: str) -> tuple[str, str]:

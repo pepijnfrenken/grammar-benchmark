@@ -3,24 +3,31 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 from pathlib import Path
 
 from llm_grammar_bench.types import BenchmarkResult
 
+logger = logging.getLogger(__name__)
 
-def serialize_results(results: BenchmarkResult, output_path: str | Path) -> None:
+
+def serialize_results(results: BenchmarkResult, output_path: str | Path) -> str:
     """Write benchmark results to a JSON file.
 
     Args:
         results: The benchmark result to serialize.
         output_path: Path to write the JSON file.
+
+    Returns:
+        The actual file path written.
     """
     output_path = Path(output_path)
 
-    if output_path.is_dir():
+    if output_path.is_dir() or output_path.suffix == "":
         output_path.mkdir(parents=True, exist_ok=True)
-        filename = f"{results.model_id.replace(':', '_')}_{results.dataset_name}.json"
+        safe_model = results.model_id.replace(":", "_").replace("/", "_")
+        filename = f"{safe_model}_{results.dataset_name}.json"
         output_path = output_path / filename
     else:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,10 +38,8 @@ def serialize_results(results: BenchmarkResult, output_path: str | Path) -> None
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    import logging
-
-    logger = logging.getLogger(__name__)
     logger.info("Results written to %s", output_path)
+    return str(output_path)
 
 
 def _result_to_dict(results: BenchmarkResult) -> dict:
