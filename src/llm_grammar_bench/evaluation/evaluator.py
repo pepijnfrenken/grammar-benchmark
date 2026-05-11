@@ -60,9 +60,10 @@ class Evaluator:
         per_sentence: list[dict] = []
         cefr_groups: dict[str, dict[str, list]] = {}
 
+        backend = self._backend  # Local ref for the inference loop
         for i, example in enumerate(examples):
             logger.debug("Correcting example %d/%d", i + 1, len(examples))
-            hypothesis = self._strategy.correct(self._backend, example.source)
+            hypothesis = self._strategy.correct(backend, example.source)
 
             sources.append(example.source)
             hypotheses.append(hypothesis)
@@ -88,6 +89,12 @@ class Evaluator:
                 cefr_groups[cefr]["hypotheses"].append(hypothesis)
                 cefr_groups[cefr]["references"].append(example.references)
 
+        # Capture model_id before releasing backend GPU memory
+        model_id = backend.model_id
+
+        # Release backend to free GPU memory before metric computation
+        backend.release()
+        del backend
         # Compute corpus-level metrics
         metrics_runner = MetricsRunner(beta=self._beta)
         corpus_scores = metrics_runner.compute(
@@ -114,7 +121,7 @@ class Evaluator:
         strategy_name = type(self._strategy).__name__
 
         return BenchmarkResult(
-            model_id=self._backend.model_id,
+            model_id=model_id,
             dataset_name=dataset_name,
             strategy_name=strategy_name,
             corpus_scores=corpus_scores,

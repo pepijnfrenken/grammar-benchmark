@@ -44,3 +44,11 @@ class BaseBackend(ABC):
     def metadata(self) -> dict[str, str]:
         """Provider metadata: provider name, model name, parameter count, etc."""
         ...
+
+    def release(self) -> None:
+        """Release backend resources (e.g. GPU memory).
+
+        Override in subclasses that hold heavyweight resources.
+        Default implementation is a no-op.
+        """
+        return

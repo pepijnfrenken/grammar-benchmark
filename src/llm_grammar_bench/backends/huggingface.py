@@ -152,3 +152,17 @@ class HuggingFaceBackend(BaseBackend):
             "model": self._model_name,
             "device": self._device,
         }
+
+    def release(self) -> None:
+        """Move model to CPU and free GPU memory."""
+        if self._model is not None:
+            self._model.to("cpu")
+            del self._model
+            self._model = None
+        if self._tokenizer is not None:
+            del self._tokenizer
+            self._tokenizer = None
+        import gc
+
+        gc.collect()
+        torch.cuda.empty_cache()
