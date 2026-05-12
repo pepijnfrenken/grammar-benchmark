@@ -11,7 +11,7 @@
 #   anthropic         — Anthropic native API
 #   huggingface       — Local models via transformers (no API key needed)
 #   openai_compatible — Any OpenAI-compatible endpoint (OpenRouter, Groq,
-#                        Together, vLLM, Ollama, etc.)
+#                        Together, vLLM, Ollama, OpenCode Go, etc.)
 #
 # The four built-in providers (openai, anthropic, openrouter, huggingface)
 # are always available and don't need to be listed here. Override them to
@@ -30,6 +30,12 @@ providers:
   #   api_key: "ollama"
   #   base_url: "http://localhost:11434/v1"
 
+  # Example: OpenCode Go — low cost subscription for open coding models
+  # (subscribe at opencode.ai/auth, get API key from console)
+  # opencode-go:
+  #   provider_type: openai_compatible
+  #   api_key: "${OPENCODE_API_KEY}"
+  #   base_url: "https://opencode.ai/zen/go/v1"
 # ── Models ─────────────────────────────────────────────────────────────────
 # Each model references a provider and can be used with --model <key>.
 # The four built-in providers are always available even without a custom
@@ -72,6 +78,13 @@ models:
   #   nickname: "Llama 4 Maverick"
   #   temperature: 0.0
 
+  # Example: DeepSeek V4 Flash via OpenCode Go
+  # deepseek-v4-flash:
+  #   provider: opencode-go
+  #   model: deepseek-v4-flash
+  #   nickname: "DeepSeek V4 Flash"
+  #   temperature: 0.0
+  #   max_tokens: 512
 # ── Datasets ───────────────────────────────────────────────────────────────
 
 datasets:

@@ -168,6 +168,7 @@ def resolve_model(config: BenchmarkConfig, model_ref: str) -> tuple[ProviderConf
         "openai": "openai",
         "anthropic": "anthropic",
         "openrouter": "openrouter",
+        "opencode-go": "opencode-go",
         "huggingface": "huggingface",
     }
     if ":" in model_ref:
