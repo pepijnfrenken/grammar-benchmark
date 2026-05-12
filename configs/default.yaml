@@ -1,30 +1,86 @@
-# Benchmark configuration examples
-# Override via: llm-grammar-bench run --config my-config.yaml
+# LLM Grammar Bench — configuration file
+# Usage: llm-grammar-bench run --config configs/default.yaml --model gpt4o
+#        llm-grammar-bench run --config configs/default.yaml --model t5-small
+
+# ── Providers ──────────────────────────────────────────────────────────────
+# Define API providers. Built-in providers have sensible defaults and don't
+# need to be explicitly listed. Add custom providers for self-hosted endpoints.
+#
+# provider_type options:
+#   openai            — OpenAI native API
+#   anthropic         — Anthropic native API
+#   huggingface       — Local models via transformers (no API key needed)
+#   openai_compatible — Any OpenAI-compatible endpoint (OpenRouter, Groq,
+#                        Together, vLLM, Ollama, etc.)
+#
+# The four built-in providers (openai, anthropic, openrouter, huggingface)
+# are always available and don't need to be listed here. Override them to
+# set custom base URLs or inline API keys.
+
+providers:
+  # Example: custom Groq provider
+  # groq:
+  #   provider_type: openai_compatible
+  #   api_key: "${GROQ_API_KEY}"
+  #   base_url: "https://api.groq.com/openai/v1"
+
+  # Example: local Ollama
+  # ollama:
+  #   provider_type: openai_compatible
+  #   api_key: "ollama"
+  #   base_url: "http://localhost:11434/v1"
+
+# ── Models ─────────────────────────────────────────────────────────────────
+# Each model references a provider and can be used with --model <key>.
+# The four built-in providers are always available even without a custom
+# providers section.
 
 models:
-  openai_gpt4o:
-    backend: openai
+  gpt4o:
+    provider: openai
     model: gpt-4o
+    nickname: "GPT-4o"
     temperature: 0.0
     max_tokens: 512
 
-  anthropic_claude:
-    backend: anthropic
+  claude-opus:
+    provider: anthropic
     model: claude-3-opus-20240229
+    nickname: "Claude 3 Opus"
+    reasoning: true
     temperature: 0.0
-    max_tokens: 512
+    max_tokens: 4096
 
-  hf_t5_small:
-    backend: huggingface
+  t5-small:
+    provider: huggingface
     model: google/flan-t5-small
+    nickname: "Flan-T5 Small"
     temperature: 0.0
     max_tokens: 128
+
+  coedit-large:
+    provider: huggingface
+    model: grammarly/coedit-large
+    nickname: "CoEdit Large"
+    temperature: 0.0
+    max_tokens: 128
+
+  # Example: OpenRouter model
+  # llama-maverick:
+  #   provider: openrouter
+  #   model: meta-llama/llama-4-maverick
+  #   nickname: "Llama 4 Maverick"
+  #   temperature: 0.0
+
+# ── Datasets ───────────────────────────────────────────────────────────────
 
 datasets:
   bea2019:
     type: bea2019
     split: validation
     cefr_filter: null  # null = all levels; or [A, B, C, N]
+
+# ── Evaluation ─────────────────────────────────────────────────────────────
 
 evaluation:
   metrics:

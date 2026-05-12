@@ -7,15 +7,59 @@ from pathlib import Path
 import pytest
 
 
-def test_model_config_defaults() -> None:
-    """Test ModelConfig with minimal fields, verify defaults."""
-    from llm_grammar_bench.config import ModelConfig
+def test_provider_config_defaults() -> None:
+    """Test ProviderConfig with minimal fields."""
+    from llm_grammar_bench.config import ProviderConfig
 
-    config = ModelConfig(backend="openai", model="gpt-4")
-    assert config.backend == "openai"
-    assert config.model == "gpt-4"
-    assert config.temperature == 0.0
-    assert config.max_tokens == 512
+    config = ProviderConfig(provider_type="openai")
+    assert config.provider_type == "openai"
+    assert config.api_key == ""
+    assert config.base_url is None
+
+
+def test_provider_config_full() -> None:
+    """Test ProviderConfig with all fields."""
+    from llm_grammar_bench.config import ProviderConfig
+
+    config = ProviderConfig(
+        provider_type="openai_compatible",
+        api_key="sk-test",
+        base_url="https://api.example.com/v1",
+    )
+    assert config.provider_type == "openai_compatible"
+    assert config.api_key == "sk-test"
+    assert config.base_url == "https://api.example.com/v1"
+
+
+def test_model_entry_defaults() -> None:
+    """Test ModelEntry with minimal fields, verify defaults."""
+    from llm_grammar_bench.config import ModelEntry
+
+    entry = ModelEntry(provider="openai", model="gpt-4")
+    assert entry.provider == "openai"
+    assert entry.model == "gpt-4"
+    assert entry.temperature == 0.0
+    assert entry.max_tokens == 512
+    assert entry.reasoning is False
+    assert entry.nickname is None
+
+
+def test_model_entry_full() -> None:
+    """Test ModelEntry with all fields."""
+    from llm_grammar_bench.config import ModelEntry
+
+    entry = ModelEntry(
+        provider="openai",
+        model="gpt-4o",
+        nickname="GPT-4o",
+        reasoning=True,
+        temperature=0.3,
+        max_tokens=1024,
+    )
+    assert entry.nickname == "GPT-4o"
+    assert entry.reasoning is True
+    assert entry.temperature == 0.3
+    assert entry.max_tokens == 1024
 
 
 def test_evaluation_config_defaults() -> None:
@@ -28,13 +72,14 @@ def test_evaluation_config_defaults() -> None:
     assert config.output_dir == "results/"
 
 
-def test_benchmark_config_from_dict() -> None:
-    """Test creating BenchmarkConfig from a minimal dict."""
+def test_benchmark_config_empty() -> None:
+    """Test BenchmarkConfig defaults."""
     from llm_grammar_bench.config import BenchmarkConfig
 
     config = BenchmarkConfig()
     assert config.models == {}
     assert config.datasets == {}
+    assert config.providers == {}
     assert isinstance(config.evaluation, object)
 
 
@@ -59,7 +104,6 @@ def test_env_interpolation_missing_var() -> None:
     """Test _interpolate_env raises ValueError for missing env var."""
     from llm_grammar_bench.config import _interpolate_env
 
-    # Ensure the var doesn't exist
     if "NONEXISTENT_VAR_12345" in os.environ:
         del os.environ["NONEXISTENT_VAR_12345"]
 
@@ -76,12 +120,9 @@ def test_walk_interpolate_nested() -> None:
 
     obj = {
         "string": "prefix_${KEY1}",
-        "nested": {
-            "inner": "prefix_${KEY2}",
-        },
+        "nested": {"inner": "prefix_${KEY2}"},
         "list": ["item_${KEY1}", "item_${KEY2}"],
     }
-
     result = _walk_interpolate(obj)
     assert result["string"] == "prefix_value1"
     assert result["nested"]["inner"] == "prefix_value2"
@@ -95,7 +136,7 @@ def test_load_config_basic() -> None:
     yaml_content = """
 models:
   gpt4:
-    backend: openai
+    provider: openai
     model: gpt-4
     temperature: 0.3
     max_tokens: 1024
@@ -114,7 +155,7 @@ evaluation:
         try:
             config = load_config(f.name)
             assert "gpt4" in config.models
-            assert config.models["gpt4"].backend == "openai"
+            assert config.models["gpt4"].provider == "openai"
             assert config.models["gpt4"].temperature == 0.3
             assert "bea" in config.datasets
             assert config.evaluation.beta == 0.7
@@ -139,7 +180,7 @@ def test_load_config_with_env_interpolation() -> None:
     yaml_content = """
 models:
   gpt4:
-    backend: openai
+    provider: openai
     model: gpt-4
 """
 
@@ -149,5 +190,65 @@ models:
         try:
             config = load_config(f.name)
             assert config is not None
+        finally:
+            Path(f.name).unlink()
+
+
+def test_resolve_model_by_key() -> None:
+    """Test resolve_model finds a model by its config key."""
+    from llm_grammar_bench.config import BenchmarkConfig, ModelEntry, resolve_model
+
+    config = BenchmarkConfig(
+        models={"my-gpt": ModelEntry(provider="openai", model="gpt-4o", nickname="My GPT")}
+    )
+    provider, entry = resolve_model(config, "my-gpt")
+    assert entry.model == "gpt-4o"
+    assert entry.nickname == "My GPT"
+    assert provider.provider_type == "openai"
+
+
+def test_resolve_model_by_shorthand() -> None:
+    """Test resolve_model parses 'openai:gpt-4o' shorthand."""
+    from llm_grammar_bench.config import BenchmarkConfig, resolve_model
+
+    config = BenchmarkConfig()
+    provider, entry = resolve_model(config, "openai:gpt-4o")
+    assert entry.model == "gpt-4o"
+    assert provider.provider_type == "openai"
+
+
+def test_resolve_model_unknown_provider() -> None:
+    """Test resolve_model raises on unknown provider reference."""
+    from llm_grammar_bench.config import BenchmarkConfig, ModelEntry, resolve_model
+
+    config = BenchmarkConfig(
+        models={
+            "bad-model": ModelEntry(provider="nonexistent", model="test"),
+        }
+    )
+    with pytest.raises(ValueError, match="unknown provider"):
+        resolve_model(config, "bad-model")
+
+
+def test_benchmark_config_merges_default_providers() -> None:
+    """Test load_config always has the four built-in providers."""
+    from llm_grammar_bench.config import load_config
+
+    yaml_content = """
+models:
+  gpt4:
+    provider: openai
+    model: gpt-4
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(yaml_content)
+        f.flush()
+        try:
+            config = load_config(f.name)
+            assert "openai" in config.providers
+            assert "anthropic" in config.providers
+            assert "openrouter" in config.providers
+            assert "huggingface" in config.providers
         finally:
             Path(f.name).unlink()
