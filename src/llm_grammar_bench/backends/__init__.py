@@ -56,6 +56,8 @@ def load_backend(
 
             if provider_cfg is None:
                 raise ValueError("openai_compatible backend requires a provider configuration")
+            kwargs.pop("temperature", None)
+            kwargs.pop("max_tokens", None)
             return GenericOpenAICompatibleBackend(
                 model=model,
                 api_key=provider_cfg.api_key,
@@ -73,6 +75,8 @@ def load_backend(
 
             if provider_cfg is None:
                 raise ValueError("anthropic_compatible backend requires a provider configuration")
+            kwargs.pop("temperature", None)
+            kwargs.pop("max_tokens", None)
             return AnthropicCompatibleBackend(
                 model=model,
                 api_key=provider_cfg.api_key,
