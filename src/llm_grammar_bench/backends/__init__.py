@@ -65,11 +65,28 @@ def load_backend(
                 reasoning=model_entry.reasoning if model_entry else False,
                 **kwargs,
             )
+
+        case "anthropic_compatible":
+            from llm_grammar_bench.backends.anthropic_compatible import (
+                AnthropicCompatibleBackend,
+            )
+
+            if provider_cfg is None:
+                raise ValueError("anthropic_compatible backend requires a provider configuration")
+            return AnthropicCompatibleBackend(
+                model=model,
+                api_key=provider_cfg.api_key,
+                base_url=provider_cfg.base_url or "",
+                temperature=model_entry.temperature if model_entry else 0.0,
+                max_tokens=model_entry.max_tokens if model_entry else 512,
+                reasoning=model_entry.reasoning if model_entry else False,
+                **kwargs,
+            )
         case _:
             raise ValueError(
                 f"Unknown backend type: {backend_type}. "
                 f"Valid options: openai, anthropic, huggingface, openrouter, "
-                f"openai_compatible"
+                f"openai_compatible, anthropic_compatible"
             )
 
 
