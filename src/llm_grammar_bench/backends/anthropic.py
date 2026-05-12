@@ -97,7 +97,7 @@ class AnthropicBackend(BaseBackend):
 
         self._ensure_client()
 
-        system_prompt = str(kwargs.get("system_prompt", "Correct the grammar errors."))
+        system_prompt = str(kwargs.pop("system_prompt", "Correct the grammar errors."))
 
         try:
             correction = self._call_api(system_prompt, text, **kwargs)
