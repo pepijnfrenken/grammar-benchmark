@@ -62,8 +62,9 @@ def _run_single_benchmark(
     output: str,
     max_sentences: int | None,
     beta: float,
+    max_workers: int = 1,
+    rate_limit: float | None = None,
 ) -> None:
-    """Execute a benchmark for a single model and print results."""
     backend = _load_backend_for_model(config, model_ref)
     click.echo(f"Backend: {backend.model_id}")  # type: ignore[union-attr]
 
@@ -90,8 +91,9 @@ def _run_single_benchmark(
         split=split,
         max_sentences=max_sentences,
         beta=beta,
+        max_workers=max_workers,
+        rate_limit=rate_limit,
     )
-
     metric_list = [m.strip() for m in metrics.split(",")] if isinstance(metrics, str) else metrics
 
     result = evaluator.run(metrics=metric_list)
@@ -141,6 +143,8 @@ def _run_single_benchmark(
 @click.option("--output", default="results/", help="Output directory or file path.")
 @click.option("--max-sentences", type=int, default=None, help="Limit sentences for quick testing.")
 @click.option("--beta", type=float, default=0.5, help="Beta value for ERRANT F-score.")
+@click.option("--max-workers", type=int, default=1, help="Concurrent requests (1 = sequential).")
+@click.option("--rate-limit", type=float, default=None, help="Max API calls per second.")
 @click.pass_context
 def run(
     ctx: click.Context,
@@ -153,6 +157,8 @@ def run(
     output: str,
     max_sentences: int | None,
     beta: float,
+    max_workers: int,
+    rate_limit: float | None,
 ) -> None:
     """Run a benchmark with one or more models.
 
@@ -175,6 +181,12 @@ def run(
         raise click.UsageError("Cannot use both --model and --models together.")
 
     config = ctx.obj.get("config") if ctx.obj else None
+
+    # Resolve max_workers and rate_limit from config if not specified via CLI
+    if max_workers == 1 and config is not None:
+        max_workers = config.evaluation.max_workers
+    if rate_limit is None and config is not None:
+        rate_limit = config.evaluation.rate_limit
 
     model_list: list[str]
     if models:
@@ -203,6 +215,8 @@ def run(
             output=output,
             max_sentences=max_sentences,
             beta=beta,
+            max_workers=max_workers,
+            rate_limit=rate_limit,
         )
 
 
@@ -256,3 +270,13 @@ def list_models(ctx: click.Context) -> None:
 def list_datasets() -> None:
     """List available datasets."""
     click.echo("Available datasets: bea2019")
+
+
+@main.command()
+def clear_cache() -> None:
+    """Clear the correction cache to force fresh API calls."""
+    from llm_grammar_bench.utils.cache import CacheStore
+
+    cache = CacheStore()
+    cache.clear()
+    click.echo("Correction cache cleared.")

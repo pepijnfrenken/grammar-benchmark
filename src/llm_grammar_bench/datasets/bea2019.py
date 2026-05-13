@@ -13,6 +13,56 @@ logger = logging.getLogger(__name__)
 _DATASET_ID = "jvamvas/peer_wi-locness"
 
 
+# ── Detokenization ─────────────────────────────────────────────────────
+# The dataset stores text as space-separated tokens (e.g. "It 's").
+# Simple join(" ") leaves artifacts like "teacher ," instead of "teacher,".
+
+_DETOKENIZE_RULES: list[tuple[str, str]] = [
+    # Remove space before closing punctuation / clitics
+    (r"\s+(\.)", r"\1"),
+    (r"\s+(,)", r"\1"),
+    (r"\s+(!)", r"\1"),
+    (r"\s+(\?)", r"\1"),
+    (r"\s+(;)", r"\1"),
+    (r"\s+(:)", r"\1"),
+    (r"\s+(\))", r"\1"),
+    (r"\s+(\])", r"\1"),
+    (r"\s+(\})", r"\1"),
+    (r"\s+(%)", r"\1"),
+    # Contractions: "do n't" → "don't", "I 'm" → "I'm"
+    (r"\s+('s)\b", r"\1"),
+    (r"\s+('ll)\b", r"\1"),
+    (r"\s+('ve)\b", r"\1"),
+    (r"\s+('re)\b", r"\1"),
+    (r"\s+('d)\b", r"\1"),
+    (r"\s+('m)\b", r"\1"),
+    (r"\s+(n't)\b", r"\1"),
+    (r"\s+('t)\b", r"\1"),
+    # Quotes — handled in _detokenize for contextual open/close detection
+    # Remove space after opening punctuation
+    (r"(\()\s+", r"\1"),
+    (r"(\[)\s+", r"\1"),
+    (r"(\{)\s+", r"\1"),
+    # Normalize multiple spaces
+    (r"\s{2,}", " "),
+]
+
+
+def _detokenize(tokens: list[str]) -> str:
+    """Join tokens and apply orthographic detokenization rules."""
+    import re
+
+    text = " ".join(tokens)
+    for pattern, replacement in _DETOKENIZE_RULES:
+        text = re.sub(pattern, replacement, text)
+
+    # Handle quotes contextually: opening " removes trailing space;
+    # closing " removes leading space (preceded by word or sentence-end punct).
+    text = re.sub(r'(?:^|\s)"\s+', lambda m: m.group().rstrip(), text)
+    text = re.sub(r'([\w.?!,;:])\s+"', r'\1"', text)
+
+    return text.strip()
+
 class BEA2019Dataset(BaseDataset):
     """Loads the BEA-2019 W&I+LOCNESS dataset from HuggingFace.
 
@@ -76,12 +126,9 @@ class BEA2019Dataset(BaseDataset):
                 skipped_filter += 1
                 continue
 
-            # Detokenize by joining tokens with spaces
-            # The dataset uses a subword-like tokenization where spaces are
-            # represented explicitly. Joining with space reconstructs the text.
-            source = " ".join(item["src"])
-            reference = " ".join(item["tgt"])
-
+            # Detokenize: join tokens then fix orthographic spacing
+            source = _detokenize(item["src"])
+            reference = _detokenize(item["tgt"])
             example_id = str(item.get("id", ""))
             examples.append(
                 Example(

@@ -91,8 +91,15 @@ class GenericOpenAICompatibleBackend(BaseBackend):
             extra_body=extra_body if extra_body else None,
         )
         content = response.choices[0].message.content
+        if not content:
+            logger.warning(
+                "Empty response from '%s': finish_reason=%s, model=%s, reasoning=%s",
+                self._base_url,
+                response.choices[0].finish_reason,
+                response.model,
+                self._reasoning,
+            )
         return content.strip() if content else ""
-
     def correct(self, text: str, **kwargs: Any) -> str:
         """Run grammatical error correction via the OpenAI-compatible endpoint.
 

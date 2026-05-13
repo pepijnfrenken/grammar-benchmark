@@ -42,9 +42,9 @@ class Seq2SeqStrategy(BaseStrategy):
         prompt = f"{self._task_prefix}{source}"
         raw_output = backend.correct(prompt, system_prompt=self._system_prompt)
 
-        # Strip task prefix if the model echoed it back
+        # Strip task prefix if the model echoed it back (case-insensitive)
         corrected = raw_output
-        if self._task_prefix and corrected.startswith(self._task_prefix):
+        if self._task_prefix and corrected.lower().startswith(self._task_prefix.lower()):
             corrected = corrected[len(self._task_prefix) :]
 
         return corrected.strip()

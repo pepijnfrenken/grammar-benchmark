@@ -76,3 +76,45 @@ def test_cache_clear() -> None:
         assert cache.get("model-1", "input-1") is None
         assert cache.get("model-1", "input-2") is None
         assert cache.get("model-2", "input-1") is None
+
+
+def test_cache_thread_safety() -> None:
+    """CacheStore works correctly when shared across multiple threads."""
+    import tempfile
+    import threading
+
+    from llm_grammar_bench.utils.cache import CacheStore
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache = CacheStore(cache_dir=tmpdir)
+        errors: list[Exception] = []
+
+        def writer(thread_id: int) -> None:
+            try:
+                for i in range(20):
+                    cache.set(f"model-{thread_id}", f"input-{i}", f"output-{thread_id}-{i}")
+            except Exception as exc:
+                errors.append(exc)
+
+        def reader() -> None:
+            try:
+                for _ in range(100):
+                    cache.get("model-0", "input-0")
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=writer, args=(i,)) for i in range(4)]
+        threads.append(threading.Thread(target=reader))
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Thread-safety errors: {errors}"
+
+        # Verify data integrity: each writer's entries should be readable
+        for thread_id in range(4):
+            for i in range(20):
+                result = cache.get(f"model-{thread_id}", f"input-{i}")
+                assert result == f"output-{thread_id}-{i}"

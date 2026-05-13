@@ -131,3 +131,29 @@ def test_rate_limiter_multiple_calls() -> None:
     # Intervals should be around 0.2 seconds (with tolerance)
     assert 0.1 < interval_1 < 0.4
     assert 0.1 < interval_2 < 0.4
+
+
+def test_rate_limiter_thread_safety() -> None:
+    """RateLimiter works correctly when shared across multiple threads."""
+    import threading
+
+    from llm_grammar_bench.utils.retry import RateLimiter
+
+    limiter = RateLimiter(calls_per_second=100)  # Fast enough for test
+    results: list[int] = []
+    lock = threading.Lock()
+
+    def worker(thread_id: int) -> None:
+        for _ in range(10):
+            limiter.acquire()
+            with lock:
+                results.append(thread_id)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # All 4 threads x 10 calls = 40 results collected without races
+    assert len(results) == 40

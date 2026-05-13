@@ -83,8 +83,10 @@ models:
     provider: opencode-go
     model: deepseek-v4-flash
     nickname: "DeepSeek V4 Flash"
+    reasoning: true
     temperature: 0.0
-    max_tokens: 512
+    max_tokens: 16384
+    timeout: 180
 # ── Datasets ───────────────────────────────────────────────────────────────
 
 datasets:
@@ -102,3 +104,5 @@ evaluation:
     - bertscore
   beta: 0.5
   output_dir: results/
+  max_workers: 1       # 1 = sequential; >1 = concurrent API calls (not for local models)
+  rate_limit: null     # max calls/second (null = no limit)

@@ -121,8 +121,8 @@ def load_backend_from_config(
         backend_kwargs = {
             "temperature": model_entry.temperature,
             "max_tokens": model_entry.max_tokens,
+            "timeout": model_entry.timeout,
         }
-    backend_kwargs.update(kwargs)
 
     return load_backend(
         backend_type=provider_cfg.provider_type,

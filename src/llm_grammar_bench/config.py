@@ -31,6 +31,7 @@ class ModelEntry(BaseModel):
     reasoning: bool = False
     temperature: float = 0.0
     max_tokens: int = 512
+    timeout: float = 60.0
 
 
 class DatasetConfig(BaseModel):
@@ -43,6 +44,8 @@ class EvaluationConfig(BaseModel):
     metrics: list[str] = Field(default_factory=lambda: ["errant", "gleu", "bertscore"])
     beta: float = 0.5
     output_dir: str = "results/"
+    max_workers: int = 1
+    rate_limit: float | None = None
 
 
 class BenchmarkConfig(BaseModel):

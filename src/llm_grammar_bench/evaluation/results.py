@@ -27,7 +27,7 @@ def serialize_results(results: BenchmarkResult, output_path: str | Path) -> str:
     if output_path.is_dir() or output_path.suffix == "":
         output_path.mkdir(parents=True, exist_ok=True)
         safe_model = results.model_id.replace(":", "_").replace("/", "_")
-        filename = f"{safe_model}_{results.dataset_name}.json"
+        filename = f"{safe_model}_{results.strategy_name}_{results.dataset_name}.json"
         output_path = output_path / filename
     else:
         output_path.parent.mkdir(parents=True, exist_ok=True)

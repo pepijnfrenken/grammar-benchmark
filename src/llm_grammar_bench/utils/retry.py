@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from functools import wraps
@@ -64,6 +65,8 @@ def retry(
 class RateLimiter:
     """Simple token-bucket rate limiter for API calls.
 
+    Thread-safe: can be shared across multiple threads.
+
     Usage:
         limiter = RateLimiter(calls_per_second=5)
         for item in items:
@@ -74,11 +77,15 @@ class RateLimiter:
     def __init__(self, calls_per_second: float) -> None:
         self._min_interval = 1.0 / calls_per_second
         self._last_call = 0.0
+        self._lock = threading.Lock()
 
     def acquire(self) -> None:
         """Block until the next call is permitted."""
         now = time.monotonic()
-        elapsed = now - self._last_call
-        if elapsed < self._min_interval:
-            time.sleep(self._min_interval - elapsed)
-        self._last_call = time.monotonic()
+        with self._lock:
+            elapsed = now - self._last_call
+            sleep_time = self._min_interval - elapsed if elapsed < self._min_interval else 0.0
+            self._last_call = now + sleep_time
+
+        if sleep_time > 0:
+            time.sleep(sleep_time)
