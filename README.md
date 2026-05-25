@@ -221,15 +221,15 @@ $ llm-grammar-bench --config configs/default.yaml run --models t5-small,coedit-l
   Model 1/2: t5-small
   ===================
   Corpus-level scores:
-    errant: F=0.0902
-    gleu: F=0.1430
-    bertscore: F=0.6430
+    errant: F=0.1147
+    gleu: F=0.0000
+    bertscore: F=0.7703
 
   Model 2/2: coedit-large
   =======================
   Corpus-level scores:
-    errant: F=0.2431
-    gleu: F=0.3895
+    errant: F=0.5070
+    gleu: F=0.5356
     bertscore: F=0.8810
 ```
 
@@ -246,5 +246,5 @@ uv sync --all-extras
 uv run ty check .          # Type checking
 uv run ruff check .        # Linting
 uv run ruff format --check .  # Formatting
-uv run pytest              # Tests (99 tests, 73% coverage)
+uv run pytest              # Tests (110 tests)
 ```

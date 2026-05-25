@@ -16,7 +16,6 @@ from llm_grammar_bench.utils.retry import RateLimiter
 logger = logging.getLogger(__name__)
 
 
-
 def _log_correction_sanity_check(examples: list[Example], hypotheses: list[str]) -> None:
     """Log a summary of correction quality to catch silent failures early.
 
@@ -57,8 +56,12 @@ def _log_correction_sanity_check(examples: list[Example], hypotheses: list[str])
 
     logger.info(
         "Correction summary: %d/%d empty (%.1f%%), %d/%d unchanged (%.1f%%)",
-        empty_count, total, empty_pct,
-        unchanged_count, total, unchanged_pct,
+        empty_count,
+        total,
+        empty_pct,
+        unchanged_count,
+        total,
+        unchanged_pct,
     )
 
     if empty_pct > 30:
@@ -73,6 +76,7 @@ def _log_correction_sanity_check(examples: list[Example], hypotheses: list[str])
             "Check the system prompt or try a different strategy.",
             unchanged_pct,
         )
+
 
 class Evaluator:
     """Orchestrates a benchmark run: load data, run corrections, compute metrics."""
@@ -149,14 +153,11 @@ class Evaluator:
             with progress_lock:
                 completed_count += 1
                 if completed_count % 100 == 0 or completed_count == total:
-                    logger.info(
-                        "Progress: %d/%d corrections complete", completed_count, total
-                    )
+                    logger.info("Progress: %d/%d corrections complete", completed_count, total)
             return result
 
         executor = BatchExecutor(max_workers=self._max_workers, rate_limiter=rate_limiter)
         hypotheses = executor.map(_correct_one, list(examples))
-
 
         # ── Sanity-check corrections before computing metrics ──────────────
         _log_correction_sanity_check(examples, hypotheses)

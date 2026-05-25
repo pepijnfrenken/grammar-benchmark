@@ -63,6 +63,7 @@ def _detokenize(tokens: list[str]) -> str:
 
     return text.strip()
 
+
 class BEA2019Dataset(BaseDataset):
     """Loads the BEA-2019 W&I+LOCNESS dataset from HuggingFace.
 

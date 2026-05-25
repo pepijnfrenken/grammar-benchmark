@@ -100,6 +100,7 @@ class GenericOpenAICompatibleBackend(BaseBackend):
                 self._reasoning,
             )
         return content.strip() if content else ""
+
     def correct(self, text: str, **kwargs: Any) -> str:
         """Run grammatical error correction via the OpenAI-compatible endpoint.
 
