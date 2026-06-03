@@ -27,6 +27,9 @@ _DEFAULT_API_MAX_WORKERS = 8
 @click.pass_context
 def main(ctx: click.Context, config_path: Path | None) -> None:
     """LLM Grammar Bench — evaluate AI models on grammatical error correction."""
+    from llm_grammar_bench.config import load_env_file
+
+    load_env_file()
     ctx.ensure_object(dict)
     if config_path is not None:
         from llm_grammar_bench.config import load_config

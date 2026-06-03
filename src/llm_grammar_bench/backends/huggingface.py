@@ -33,11 +33,13 @@ class HuggingFaceBackend(BaseBackend):
         max_input_tokens: int = _MAX_INPUT_TOKENS,
         max_new_tokens: int = _MAX_NEW_TOKENS,
         cache_dir: str | None = _DEFAULT_CACHE_DIR,
+        api_key: str = "",
     ) -> None:
         self._model_name = model
         self._max_input_tokens = max_input_tokens
         self._max_new_tokens = max_new_tokens
         self._cache = CacheStore(cache_dir)
+        self._api_key = api_key
 
         self._device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self._model: Any = None
@@ -61,16 +63,23 @@ class HuggingFaceBackend(BaseBackend):
                 "Install with: pip install llmgrammarbench[huggingface]"
             ) from None
 
-        self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        from_pretrained_kwargs = self._from_pretrained_kwargs()
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self._model_name, **from_pretrained_kwargs
+        )
 
         # Detect model architecture from config before loading weights
-        config = AutoConfig.from_pretrained(self._model_name)
+        config = AutoConfig.from_pretrained(self._model_name, **from_pretrained_kwargs)
         self._is_encoder_decoder = getattr(config, "is_encoder_decoder", True)
 
         if self._is_encoder_decoder:
-            self._model = AutoModelForSeq2SeqLM.from_pretrained(self._model_name).to(self._device)
+            self._model = AutoModelForSeq2SeqLM.from_pretrained(
+                self._model_name, **from_pretrained_kwargs
+            ).to(self._device)
         else:
-            causal_model: Any = AutoModelForCausalLM.from_pretrained(self._model_name)
+            causal_model: Any = AutoModelForCausalLM.from_pretrained(
+                self._model_name, **from_pretrained_kwargs
+            )
             self._model = causal_model.to(self._device)
             tok: Any = self._tokenizer
             if tok.pad_token is None:
@@ -78,6 +87,12 @@ class HuggingFaceBackend(BaseBackend):
 
         self._model.eval()
         logger.info("Model '%s' loaded successfully.", self._model_name)
+
+    def _from_pretrained_kwargs(self) -> dict[str, str]:
+        """Build HuggingFace Hub download options."""
+        if not self._api_key:
+            return {}
+        return {"token": self._api_key}
 
     def correct(self, text: str, **kwargs: Any) -> str:
         """Run grammatical error correction on the input text.

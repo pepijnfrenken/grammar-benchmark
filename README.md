@@ -66,6 +66,9 @@ providers:
     provider_type: openai_compatible
     api_key: "${GROQ_API_KEY}"
     base_url: "https://api.groq.com/openai/v1"
+  huggingface:
+    provider_type: huggingface
+    api_key: "${HF_TOKEN:-}"  # optional; authenticates Hub downloads when set
 
 models:
   gpt4o:
@@ -87,6 +90,13 @@ evaluation:
     sample_size: 200     # API models only; null runs the full dataset
     stratify_by: cefr    # preserve CEFR distribution
     seed: 0              # deterministic sample for comparable runs
+```
+
+Secrets can be kept in a local `.env` file next to the config file. `.env` is gitignored:
+
+```bash
+HF_TOKEN=hf_...
+OPENCODE_API_KEY=...
 ```
 
 Use the config:
@@ -223,25 +233,34 @@ Commands:
 
 ## Example Results
 
-Batch benchmark comparing two models on 200 A-level sentences:
+These smoke-test results use the BEA-2019 validation split, `seq2seq` strategy, a
+200-sentence stratified sample, and default metric settings.
 
-```
-$ llm-grammar-bench --config configs/default.yaml run --models t5-small,coedit-large --max-sentences 200
+| Model | Backend | Runtime | ERRANT F | GLEU F | BERTScore F |
+|-------|---------|--------:|---------:|-------:|------------:|
+| `google/flan-t5-small` | HuggingFace local | 36.9s | 0.0741 | 0.3486 | 0.8013 |
+| `grammarly/coedit-large` | HuggingFace local | 120.3s | 0.5010 | 0.6569 | 0.9235 |
+| `qwen3.7-plus` | OpenCode Go | 797.8s | 0.4091 | 0.6511 | 0.9102 |
 
-  Model 1/2: t5-small
-  ===================
-  Corpus-level scores:
-    errant: F=0.1147
-    gleu: F=0.0000
-    bertscore: F=0.7703
+Per-CEFR breakdown:
 
-  Model 2/2: coedit-large
-  =======================
-  Corpus-level scores:
-    errant: F=0.5070
-    gleu: F=0.5356
-    bertscore: F=0.8810
-```
+| Model | CEFR | ERRANT F | GLEU F | BERTScore F |
+|-------|------|---------:|-------:|------------:|
+| `google/flan-t5-small` | A | 0.1228 | 0.0000 | 0.7727 |
+| `google/flan-t5-small` | B | 0.0816 | 0.2867 | 0.8136 |
+| `google/flan-t5-small` | C | 0.0185 | 0.4549 | 0.8191 |
+| `google/flan-t5-small` | N | 0.0249 | 0.5032 | 0.8051 |
+| `grammarly/coedit-large` | A | 0.4917 | 0.5585 | 0.8891 |
+| `grammarly/coedit-large` | B | 0.5589 | 0.6176 | 0.9344 |
+| `grammarly/coedit-large` | C | 0.4611 | 0.7337 | 0.9452 |
+| `grammarly/coedit-large` | N | 0.4326 | 0.7415 | 0.9344 |
+| `qwen3.7-plus` | A | 0.4728 | 0.6240 | 0.8898 |
+| `qwen3.7-plus` | B | 0.4003 | 0.6034 | 0.9091 |
+| `qwen3.7-plus` | C | 0.3577 | 0.7011 | 0.9236 |
+| `qwen3.7-plus` | N | 0.3599 | 0.7016 | 0.9297 |
+
+In this sample, `grammarly/coedit-large` is the strongest practical baseline: it
+has the highest corpus-level scores and runs locally without API cost.
 
 ## Development
 
@@ -256,5 +275,5 @@ uv sync --all-extras
 uv run ty check .          # Type checking
 uv run ruff check .        # Linting
 uv run ruff format --check .  # Formatting
-uv run pytest              # Tests (110 tests)
+uv run pytest              # Tests
 ```

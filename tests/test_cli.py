@@ -1,5 +1,7 @@
 """Tests for the CLI module."""
 
+import os
+
 
 def test_cli_group_exists() -> None:
     from llm_grammar_bench.cli import main
@@ -48,6 +50,25 @@ def test_list_models_command() -> None:
     assert "anthropic" in result.output
     assert "huggingface" in result.output
     assert "openrouter" in result.output
+
+
+def test_cli_loads_dotenv_from_working_directory(monkeypatch) -> None:
+    """Test CLI commands load local dotenv values before running."""
+    from click.testing import CliRunner
+
+    from llm_grammar_bench.cli import main
+
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open(".env", "w") as env_file:
+            env_file.write("HF_TOKEN=hf_cli_token\n")
+
+        result = runner.invoke(main, ["list-datasets"])
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert os.environ["HF_TOKEN"] == "hf_cli_token"
 
 
 def test_list_datasets_command() -> None:

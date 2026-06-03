@@ -16,6 +16,11 @@
 # The four built-in providers (openai, anthropic, openrouter, huggingface)
 # are always available and don't need to be listed here. Override them to
 # set custom base URLs or inline API keys.
+# To authenticate HuggingFace Hub downloads, override the built-in provider:
+#   huggingface:
+#     provider_type: huggingface
+#     api_key: "${HF_TOKEN}"
+
 
 providers:
   # Example: custom Groq provider
@@ -30,32 +35,32 @@ providers:
   #   api_key: "ollama"
   #   base_url: "http://localhost:11434/v1"
 
-  # Example: OpenCode Go — low cost subscription for open coding models
-  # (subscribe at opencode.ai/auth, get API key from console)
-   opencode-go:
-     provider_type: openai_compatible
-     api_key: "${OPENCODE_API_KEY}"
-     base_url: "https://opencode.ai/zen/go/v1"
+  # OpenCode Go — low cost subscription for open coding models
+  # Set OPENCODE_API_KEY in .env or your shell environment before running these models.
+  opencode-go:
+    provider_type: openai_compatible
+    api_key: "${OPENCODE_API_KEY:-}"
+    base_url: "https://opencode.ai/zen/go/v1"
 # ── Models ─────────────────────────────────────────────────────────────────
 # Each model references a provider and can be used with --model <key>.
 # The four built-in providers are always available even without a custom
 # providers section.
 
 models:
-  gpt4o:
-    provider: openai
-    model: gpt-4o
-    nickname: "GPT-4o"
-    temperature: 0.0
-    max_tokens: 512
+  #gpt4o:
+  #  provider: openai
+  #  model: gpt-4o
+  #  nickname: "GPT-4o"
+  #  temperature: 0.0
+  #  max_tokens: 512
 
-  claude-opus:
-    provider: anthropic
-    model: claude-3-opus-20240229
-    nickname: "Claude 3 Opus"
-    reasoning: true
-    temperature: 0.0
-    max_tokens: 4096
+  #claude-opus:
+  #  provider: anthropic
+  #  model: claude-3-opus-20240229
+  #  nickname: "Claude 3 Opus"
+  #  reasoning: true
+  #  temperature: 0.0
+  #  max_tokens: 4096
 
   t5-small:
     provider: huggingface
@@ -78,15 +83,24 @@ models:
   #   nickname: "Llama 4 Maverick"
   #   temperature: 0.0
 
-  # Example: DeepSeek V4 Flash via OpenCode Go
-  deepseek-v4-flash:
+  # OpenCode Go models
+  qwen37-plus:
     provider: opencode-go
-    model: deepseek-v4-flash
-    nickname: "DeepSeek V4 Flash"
+    model: qwen3.7-plus
+    nickname: "Qwen 3.7 Plus"
     reasoning: true
     temperature: 0.0
-    max_tokens: 16384
+    max_tokens: 2048
     timeout: 180
+
+  # deepseek-v4-flash:
+  #   provider: opencode-go
+  #   model: deepseek-v4-flash
+  #   nickname: "DeepSeek V4 Flash"
+  #   reasoning: true
+  #   temperature: 0.0
+  #   max_tokens: 16384
+  #   timeout: 180
 # ── Datasets ───────────────────────────────────────────────────────────────
 
 datasets:

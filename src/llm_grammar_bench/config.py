@@ -65,6 +65,8 @@ class BenchmarkConfig(BaseModel):
 
 
 # Pre-built default providers so the config works without a providers section.
+_DEFAULT_ENV_FILE = ".env"
+
 _DEFAULT_PROVIDERS: dict[str, ProviderConfig] = {
     "openai": ProviderConfig(provider_type="openai", api_key="${OPENAI_API_KEY}"),
     "anthropic": ProviderConfig(provider_type="anthropic", api_key="${ANTHROPIC_API_KEY}"),
@@ -77,18 +79,60 @@ _DEFAULT_PROVIDERS: dict[str, ProviderConfig] = {
 }
 
 
+def load_env_file(path: str | Path = _DEFAULT_ENV_FILE) -> None:
+    """Load environment variables from a local dotenv file if it exists.
+
+    Existing process environment variables take precedence over dotenv entries.
+    Supported syntax is intentionally small: ``KEY=VALUE``, optional ``export``,
+    blank lines, and comment lines.
+    """
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+
+    for line_number, raw_line in enumerate(env_path.read_text().splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line.removeprefix("export ").strip()
+        if "=" not in line:
+            raise ValueError(f"Invalid dotenv entry in {env_path} at line {line_number}")
+
+        name, value = line.split("=", 1)
+        name = name.strip()
+        if not name:
+            raise ValueError(f"Invalid dotenv key in {env_path} at line {line_number}")
+        if name in os.environ:
+            continue
+
+        os.environ[name] = _strip_env_quotes(value.strip())
+
+
+def _strip_env_quotes(value: str) -> str:
+    """Strip matching single or double quotes from a dotenv value."""
+    if len(value) < 2:
+        return value
+    if value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1]
+    return value
+
+
 def _interpolate_env(value: str) -> str:
-    """Replace ``${VAR}`` patterns with environment variable values."""
+    """Replace ``${VAR}`` and ``${VAR:-default}`` with environment values."""
     import re
 
     def _replace(match: re.Match[str]) -> str:
         var = match.group(1)
+        default_value = match.group(2)
         result = os.environ.get(var, "")
-        if not result:
-            raise ValueError(f"Environment variable ${var} is not set")
-        return result
+        if result:
+            return result
+        if default_value is not None:
+            return default_value
+        raise ValueError(f"Environment variable ${var} is not set")
 
-    return re.sub(r"\$\{(\w+)\}", _replace, value)
+    return re.sub(r"\$\{(\w+)(?::\-([^}]*))?\}", _replace, value)
 
 
 def _walk_interpolate(obj: Any) -> Any:
@@ -118,6 +162,7 @@ def load_config(path: str | Path) -> BenchmarkConfig:
     config_path = Path(path)
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
+    load_env_file(config_path.parent / _DEFAULT_ENV_FILE)
 
     raw = yaml.safe_load(config_path.read_text())
     raw = _walk_interpolate(raw)

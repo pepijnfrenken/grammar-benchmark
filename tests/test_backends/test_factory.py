@@ -26,6 +26,33 @@ def test_load_backend_huggingface() -> None:
     assert isinstance(backend, HuggingFaceBackend)
 
 
+def test_load_backend_from_config_passes_huggingface_api_key() -> None:
+    """Test HuggingFace provider api_key is passed as a Hub download token."""
+    from llm_grammar_bench.backends import load_backend_from_config
+    from llm_grammar_bench.backends.huggingface import HuggingFaceBackend
+    from llm_grammar_bench.config import BenchmarkConfig, ModelEntry, ProviderConfig
+
+    config = BenchmarkConfig(
+        providers={
+            "huggingface": ProviderConfig(
+                provider_type="huggingface",
+                api_key="hf_test_token",
+            )
+        },
+        models={
+            "local-model": ModelEntry(
+                provider="huggingface",
+                model="google/flan-t5-small",
+            )
+        },
+    )
+
+    backend = load_backend_from_config(config, "local-model")
+
+    assert isinstance(backend, HuggingFaceBackend)
+    assert backend._from_pretrained_kwargs() == {"token": "hf_test_token"}
+
+
 def test_load_backend_openai_with_env() -> None:
     """Test that load_backend returns OpenAIBackend when OPENAI_API_KEY is set."""
     from llm_grammar_bench.backends import load_backend

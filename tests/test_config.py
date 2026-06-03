@@ -122,6 +122,90 @@ def test_env_interpolation_missing_var() -> None:
         _interpolate_env("${NONEXISTENT_VAR_12345}")
 
 
+def test_env_interpolation_default_for_missing_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test ${VAR:-default} interpolation uses a default for missing variables."""
+    from llm_grammar_bench.config import _interpolate_env
+
+    monkeypatch.delenv("OPTIONAL_VAR_12345", raising=False)
+
+    result = _interpolate_env("prefix_${OPTIONAL_VAR_12345:-fallback}_suffix")
+
+    assert result == "prefix_fallback_suffix"
+
+
+def test_load_env_file_sets_missing_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test dotenv loading supports comments, export, and quoted values."""
+    from llm_grammar_bench.config import load_env_file
+
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        """
+# local secrets
+HF_TOKEN="hf_test_token"
+export OPENCODE_API_KEY='opencode_test_key'
+"""
+    )
+
+    load_env_file(env_path)
+
+    assert os.environ["HF_TOKEN"] == "hf_test_token"
+    assert os.environ["OPENCODE_API_KEY"] == "opencode_test_key"
+
+
+def test_load_env_file_preserves_existing_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test real environment variables take precedence over dotenv values."""
+    from llm_grammar_bench.config import load_env_file
+
+    monkeypatch.setenv("HF_TOKEN", "existing_token")
+    env_path = tmp_path / ".env"
+    env_path.write_text("HF_TOKEN=dotenv_token\n")
+
+    load_env_file(env_path)
+
+    assert os.environ["HF_TOKEN"] == "existing_token"
+
+
+def test_load_config_reads_env_file_next_to_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test config interpolation can use a colocated .env file."""
+    from llm_grammar_bench.config import load_config
+
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    (tmp_path / ".env").write_text("HF_TOKEN=hf_test_token\n")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+providers:
+  huggingface:
+    provider_type: huggingface
+    api_key: "${HF_TOKEN}"
+"""
+    )
+
+    config = load_config(config_path)
+
+    assert config.providers["huggingface"].api_key == "hf_test_token"
+
+
+def test_default_config_loads_without_optional_opencode_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test bundled config does not require optional OpenCode credentials."""
+    from llm_grammar_bench.config import load_config
+
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+
+    config = load_config("configs/default.yaml")
+
+    assert config.providers["opencode-go"].api_key == ""
+    assert config.models["qwen37-plus"].model == "qwen3.7-plus"
+
+
 def test_walk_interpolate_nested() -> None:
     """Test _walk_interpolate recursively interpolates nested dicts/lists."""
     from llm_grammar_bench.config import _walk_interpolate

@@ -116,7 +116,7 @@ def load_backend_from_config(
     # Build kwargs for the backend — only pass params the backend accepts.
     # HuggingFace backend uses max_new_tokens, not max_tokens/temperature.
     if provider_cfg.provider_type == "huggingface":
-        backend_kwargs: dict[str, Any] = {}
+        backend_kwargs = {"api_key": provider_cfg.api_key}
     else:
         backend_kwargs = {
             "temperature": model_entry.temperature,
