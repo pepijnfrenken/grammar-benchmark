@@ -52,7 +52,7 @@ class EvaluationConfig(BaseModel):
     metrics: list[str] = Field(default_factory=lambda: ["errant", "gleu", "bertscore"])
     beta: float = 0.5
     output_dir: str = "results/"
-    max_workers: int = 1
+    max_workers: int | None = Field(default=None, gt=0)
     rate_limit: float | None = None
     api_sampling: SamplingConfig = Field(default_factory=SamplingConfig)
 

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 import click
 
 logger = logging.getLogger(__name__)
+_DEFAULT_API_MAX_WORKERS = 8
 
 
 @click.group()
@@ -63,7 +64,7 @@ def _run_single_benchmark(
     output: str,
     max_sentences: int | None,
     beta: float,
-    max_workers: int = 1,
+    max_workers: int | None = None,
     rate_limit: float | None = None,
     sample_size: int | None = None,
     stratify_by: str = "cefr",
@@ -92,6 +93,11 @@ def _run_single_benchmark(
     effective_sample_size = sample_size
     if sample_apis_only and backend.metadata.get("provider") == "huggingface":
         effective_sample_size = None
+    effective_max_workers = max_workers
+    if backend.metadata.get("provider") == "huggingface":
+        effective_max_workers = 1
+    elif effective_max_workers is None:
+        effective_max_workers = _DEFAULT_API_MAX_WORKERS
 
     evaluator = Evaluator(
         backend=backend,  # type: ignore[arg-type]
@@ -100,7 +106,7 @@ def _run_single_benchmark(
         split=split,
         max_sentences=max_sentences,
         beta=beta,
-        max_workers=max_workers,
+        max_workers=effective_max_workers,
         rate_limit=rate_limit,
         sample_size=effective_sample_size,
         stratify_by=stratify_by,
@@ -155,7 +161,7 @@ def _run_single_benchmark(
 @click.option("--output", default="results/", help="Output directory or file path.")
 @click.option("--max-sentences", type=int, default=None, help="Limit sentences for quick testing.")
 @click.option("--beta", type=float, default=0.5, help="Beta value for ERRANT F-score.")
-@click.option("--max-workers", type=int, default=1, help="Concurrent requests (1 = sequential).")
+@click.option("--max-workers", type=int, default=None, help="Concurrent API requests.")
 @click.option("--rate-limit", type=float, default=None, help="Max API calls per second.")
 @click.option(
     "--sample-size",
@@ -177,7 +183,7 @@ def run(
     output: str,
     max_sentences: int | None,
     beta: float,
-    max_workers: int,
+    max_workers: int | None,
     rate_limit: float | None,
     sample_size: int | None,
     stratify_by: str | None,
@@ -210,7 +216,7 @@ def run(
 
     # Resolve runtime options from config if not specified via CLI.
     sample_apis_only = False
-    if max_workers == 1 and config is not None:
+    if max_workers is None and config is not None:
         max_workers = config.evaluation.max_workers
     if rate_limit is None and config is not None:
         rate_limit = config.evaluation.rate_limit

@@ -7,7 +7,7 @@ import os
 from typing import Any
 
 from llm_grammar_bench.backends.base import BackendError, BaseBackend
-from llm_grammar_bench.utils.cache import CacheStore
+from llm_grammar_bench.utils.cache import CacheStore, make_request_cache_text
 from llm_grammar_bench.utils.retry import retry
 
 logger = logging.getLogger(__name__)
@@ -92,22 +92,19 @@ class OpenAIBackend(BaseBackend):
         Raises:
             BackendError: If the API call fails after all retries.
         """
-        cached = self._cache.get(self.model_id, text)
-        if cached is not None:
-            logger.debug("Cache hit for '%s'", self.model_id)
-            return cached
+        cache_text = make_request_cache_text(text, **kwargs)
 
-        self._ensure_client()
+        def _compute() -> str:
+            self._ensure_client()
+            system_prompt = str(kwargs.pop("system_prompt", "Correct the grammar errors."))
+            try:
+                return self._call_api(system_prompt, text, **kwargs)
+            except Exception as exc:
+                raise BackendError(
+                    f"OpenAI request failed for '{self._model_name}': {exc}"
+                ) from exc
 
-        system_prompt = str(kwargs.pop("system_prompt", "Correct the grammar errors."))
-
-        try:
-            correction = self._call_api(system_prompt, text, **kwargs)
-        except Exception as exc:
-            raise BackendError(f"OpenAI request failed for '{self._model_name}': {exc}") from exc
-
-        self._cache.set(self.model_id, text, correction)
-        return correction
+        return self._cache.get_or_compute(self.model_id, cache_text, _compute)
 
     @property
     def model_id(self) -> str:

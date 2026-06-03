@@ -1,6 +1,7 @@
 """Tests for cache module."""
 
 import tempfile
+import threading
 
 
 def test_cache_set_and_get() -> None:
@@ -22,6 +23,19 @@ def test_cache_miss() -> None:
         cache = CacheStore(cache_dir=tmpdir)
         result = cache.get("model-1", "nonexistent input")
         assert result is None
+
+
+def test_make_request_cache_text_includes_kwargs() -> None:
+    """Test request cache keys include prompt-shaping kwargs."""
+    from llm_grammar_bench.utils.cache import make_request_cache_text
+
+    base = make_request_cache_text("input", system_prompt="A", temperature=0)
+    same = make_request_cache_text("input", temperature=0, system_prompt="A")
+    different = make_request_cache_text("input", system_prompt="B", temperature=0)
+
+    assert base == same
+    assert base != different
+    assert make_request_cache_text("input") == "input"
 
 
 def test_cache_different_keys() -> None:
@@ -55,6 +69,24 @@ def test_cache_overwrite() -> None:
         assert cache.get("model-1", "input") == "second value"
 
 
+def test_cache_get_or_compute_reuses_cached_value() -> None:
+    """Test get_or_compute skips compute after a value is cached."""
+    from llm_grammar_bench.utils.cache import CacheStore
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache = CacheStore(cache_dir=tmpdir)
+        calls = 0
+
+        def compute() -> str:
+            nonlocal calls
+            calls += 1
+            return "computed"
+
+        assert cache.get_or_compute("model-1", "input", compute) == "computed"
+        assert cache.get_or_compute("model-1", "input", compute) == "computed"
+        assert calls == 1
+
+
 def test_cache_clear() -> None:
     """Test clear removes all entries."""
     from llm_grammar_bench.utils.cache import CacheStore
@@ -78,11 +110,46 @@ def test_cache_clear() -> None:
         assert cache.get("model-2", "input-1") is None
 
 
+def test_cache_get_or_compute_deduplicates_concurrent_misses() -> None:
+    """Test concurrent misses for one key call compute once."""
+    from llm_grammar_bench.utils.cache import CacheStore
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache = CacheStore(cache_dir=tmpdir)
+        calls = 0
+        compute_started = threading.Event()
+        release_compute = threading.Event()
+        errors: list[Exception] = []
+        results: list[str] = []
+
+        def compute() -> str:
+            nonlocal calls
+            calls += 1
+            compute_started.set()
+            release_compute.wait(timeout=5)
+            return "computed"
+
+        def worker() -> None:
+            try:
+                results.append(cache.get_or_compute("model-1", "input", compute))
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        assert compute_started.wait(timeout=5)
+        release_compute.set()
+        for thread in threads:
+            thread.join()
+
+        assert not errors
+        assert results == ["computed"] * 4
+        assert calls == 1
+
+
 def test_cache_thread_safety() -> None:
     """CacheStore works correctly when shared across multiple threads."""
-    import tempfile
-    import threading
-
     from llm_grammar_bench.utils.cache import CacheStore
 
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -70,6 +70,7 @@ def test_evaluation_config_defaults() -> None:
     assert config.metrics == ["errant", "gleu", "bertscore"]
     assert config.beta == 0.5
     assert config.output_dir == "results/"
+    assert config.max_workers is None
 
 
 def test_sampling_config_defaults() -> None:

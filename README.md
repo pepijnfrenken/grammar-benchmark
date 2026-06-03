@@ -81,6 +81,8 @@ evaluation:
   metrics: [errant, gleu, bertscore]
   beta: 0.5
   output_dir: results/
+  max_workers: 8        # concurrent API requests; local models stay sequential
+  rate_limit: 2.0       # optional max API calls per second
   api_sampling:
     sample_size: 200     # API models only; null runs the full dataset
     stratify_by: cefr    # preserve CEFR distribution
@@ -215,6 +217,8 @@ Commands:
 | `--sample-size` | config/all | Stratified sample size; useful for API models |
 | `--stratify-by` | `cefr` | Metadata field used for stratified sampling |
 | `--sample-seed` | `0` | Deterministic sampling seed |
+| `--max-workers` | `8` for APIs | Concurrent API requests; local models run sequentially |
+| `--rate-limit` | config/none | Max API calls per second |
 | `--beta` | `0.5` | Beta for ERRANT F-score |
 
 ## Example Results
