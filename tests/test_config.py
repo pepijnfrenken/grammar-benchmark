@@ -72,6 +72,16 @@ def test_evaluation_config_defaults() -> None:
     assert config.output_dir == "results/"
 
 
+def test_sampling_config_defaults() -> None:
+    """Test SamplingConfig defaults disable sampling."""
+    from llm_grammar_bench.config import SamplingConfig
+
+    config = SamplingConfig()
+    assert config.sample_size is None
+    assert config.stratify_by == "cefr"
+    assert config.seed == 0
+
+
 def test_benchmark_config_empty() -> None:
     """Test BenchmarkConfig defaults."""
     from llm_grammar_bench.config import BenchmarkConfig

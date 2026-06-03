@@ -40,12 +40,21 @@ class DatasetConfig(BaseModel):
     cefr_filter: list[str] | None = None
 
 
+class SamplingConfig(BaseModel):
+    """Controls optional benchmark dataset sampling."""
+
+    sample_size: int | None = Field(default=None, gt=0)
+    stratify_by: str = "cefr"
+    seed: int = 0
+
+
 class EvaluationConfig(BaseModel):
     metrics: list[str] = Field(default_factory=lambda: ["errant", "gleu", "bertscore"])
     beta: float = 0.5
     output_dir: str = "results/"
     max_workers: int = 1
     rate_limit: float | None = None
+    api_sampling: SamplingConfig = Field(default_factory=SamplingConfig)
 
 
 class BenchmarkConfig(BaseModel):

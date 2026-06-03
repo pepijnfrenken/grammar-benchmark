@@ -81,6 +81,10 @@ evaluation:
   metrics: [errant, gleu, bertscore]
   beta: 0.5
   output_dir: results/
+  api_sampling:
+    sample_size: 200     # API models only; null runs the full dataset
+    stratify_by: cefr    # preserve CEFR distribution
+    seed: 0              # deterministic sample for comparable runs
 ```
 
 Use the config:
@@ -99,8 +103,7 @@ Run multiple models from a config file sequentially:
 
 ```bash
 llm-grammar-bench --config config.yaml run \
-  --models gpt4o,llama-70b,claude-opus \
-  --max-sentences 200
+  --models gpt4o,llama-70b,claude-opus
 ```
 
 Each model produces its own output file in the configured output directory.
@@ -209,6 +212,9 @@ Commands:
 | `--metrics` | `errant,gleu,bertscore` | Metrics to compute |
 | `--output` | `results/` | Output directory or file path |
 | `--max-sentences` | all | Limit sentences for quick tests |
+| `--sample-size` | config/all | Stratified sample size; useful for API models |
+| `--stratify-by` | `cefr` | Metadata field used for stratified sampling |
+| `--sample-seed` | `0` | Deterministic sampling seed |
 | `--beta` | `0.5` | Beta for ERRANT F-score |
 
 ## Example Results

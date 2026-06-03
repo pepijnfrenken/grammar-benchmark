@@ -106,3 +106,7 @@ evaluation:
   output_dir: results/
   max_workers: 1       # 1 = sequential; >1 = concurrent API calls (not for local models)
   rate_limit: null     # max calls/second (null = no limit)
+  api_sampling:
+    sample_size: null   # null = full dataset; set for API models to reduce calls
+    stratify_by: cefr   # keep CEFR proportions in sampled evaluation sets
+    seed: 0             # deterministic sampling for comparable runs

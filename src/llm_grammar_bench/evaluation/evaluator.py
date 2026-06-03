@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 
 from llm_grammar_bench.backends.base import BaseBackend
@@ -14,6 +15,74 @@ from llm_grammar_bench.utils.concurrency import BatchExecutor
 from llm_grammar_bench.utils.retry import RateLimiter
 
 logger = logging.getLogger(__name__)
+_UNKNOWN_STRATUM = "__unknown__"
+
+
+def _group_examples_by_metadata(
+    examples: list[Example],
+    metadata_key: str,
+) -> dict[str, list[Example]]:
+    groups: dict[str, list[Example]] = {}
+    for example in examples:
+        value = example.metadata.get(metadata_key)
+        group_key = str(value) if value is not None else _UNKNOWN_STRATUM
+        groups.setdefault(group_key, []).append(example)
+    return groups
+
+
+def _allocate_stratified_counts(
+    group_sizes: dict[str, int],
+    sample_size: int,
+    total_examples: int,
+) -> dict[str, int]:
+    quotas = dict.fromkeys(group_sizes, 0)
+    remainders: list[tuple[float, int, str]] = []
+    allocated = 0
+
+    if sample_size >= len(group_sizes):
+        quotas = dict.fromkeys(group_sizes, 1)
+        allocated = len(group_sizes)
+
+    remaining_sample = sample_size - allocated
+    remaining_examples = total_examples - allocated
+    for group_key, group_size in group_sizes.items():
+        exact_quota = (remaining_sample * (group_size - quotas[group_key])) / remaining_examples
+        quota = int(exact_quota)
+        quotas[group_key] += quota
+        remainders.append((exact_quota - quota, group_size, group_key))
+
+    allocated = sum(quotas.values())
+
+    remainders.sort(reverse=True)
+    for _, _, group_key in remainders[: sample_size - allocated]:
+        quotas[group_key] += 1
+    return quotas
+
+
+def _stratified_sample(
+    examples: list[Example],
+    sample_size: int,
+    metadata_key: str,
+    seed: int,
+) -> list[Example]:
+    if sample_size <= 0:
+        raise ValueError("sample_size must be greater than 0.")
+    if sample_size >= len(examples):
+        return examples
+
+    groups = _group_examples_by_metadata(examples, metadata_key)
+    group_sizes = {group_key: len(group_examples) for group_key, group_examples in groups.items()}
+    quotas = _allocate_stratified_counts(group_sizes, sample_size, len(examples))
+
+    rng = random.Random(seed)
+    selected_examples: set[int] = set()
+    for group_key, quota in quotas.items():
+        if quota == 0:
+            continue
+        for example in rng.sample(groups[group_key], quota):
+            selected_examples.add(id(example))
+
+    return [example for example in examples if id(example) in selected_examples]
 
 
 def _log_correction_sanity_check(examples: list[Example], hypotheses: list[str]) -> None:
@@ -91,6 +160,9 @@ class Evaluator:
         beta: float = 0.5,
         max_workers: int = 1,
         rate_limit: float | None = None,
+        sample_size: int | None = None,
+        stratify_by: str = "cefr",
+        sample_seed: int = 0,
     ) -> None:
         self._backend = backend
         self._dataset = dataset
@@ -100,6 +172,9 @@ class Evaluator:
         self._beta = beta
         self._max_workers = max_workers
         self._rate_limit = rate_limit
+        self._sample_size = sample_size
+        self._stratify_by = stratify_by
+        self._sample_seed = sample_seed
 
     def run(self, metrics: list[str] | None = None) -> BenchmarkResult:
         """Execute the full benchmark pipeline.
@@ -115,7 +190,21 @@ class Evaluator:
 
         # Load dataset
         examples = self._dataset.load(self._split)
-        if self._max_sentences is not None and self._max_sentences < len(examples):
+        if self._sample_size is not None:
+            original_count = len(examples)
+            examples = _stratified_sample(
+                examples,
+                sample_size=self._sample_size,
+                metadata_key=self._stratify_by,
+                seed=self._sample_seed,
+            )
+            logger.info(
+                "Stratified sample by %s: %d/%d examples.",
+                self._stratify_by,
+                len(examples),
+                original_count,
+            )
+        elif self._max_sentences is not None and self._max_sentences < len(examples):
             examples = examples[: self._max_sentences]
             logger.info("Limited to %d examples.", self._max_sentences)
 

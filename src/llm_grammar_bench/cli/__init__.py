@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from llm_grammar_bench.backends.base import BaseBackend
+    from llm_grammar_bench.config import BenchmarkConfig
 import click
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,10 @@ def _run_single_benchmark(
     beta: float,
     max_workers: int = 1,
     rate_limit: float | None = None,
+    sample_size: int | None = None,
+    stratify_by: str = "cefr",
+    sample_seed: int = 0,
+    sample_apis_only: bool = False,
 ) -> None:
     backend = _load_backend_for_model(config, model_ref)
     click.echo(f"Backend: {backend.model_id}")  # type: ignore[union-attr]
@@ -84,6 +89,10 @@ def _run_single_benchmark(
     from llm_grammar_bench.evaluation.evaluator import Evaluator
     from llm_grammar_bench.evaluation.results import serialize_results
 
+    effective_sample_size = sample_size
+    if sample_apis_only and backend.metadata.get("provider") == "huggingface":
+        effective_sample_size = None
+
     evaluator = Evaluator(
         backend=backend,  # type: ignore[arg-type]
         dataset=dataset_instance,  # type: ignore[arg-type]
@@ -93,6 +102,9 @@ def _run_single_benchmark(
         beta=beta,
         max_workers=max_workers,
         rate_limit=rate_limit,
+        sample_size=effective_sample_size,
+        stratify_by=stratify_by,
+        sample_seed=sample_seed,
     )
     metric_list = [m.strip() for m in metrics.split(",")] if isinstance(metrics, str) else metrics
 
@@ -145,6 +157,14 @@ def _run_single_benchmark(
 @click.option("--beta", type=float, default=0.5, help="Beta value for ERRANT F-score.")
 @click.option("--max-workers", type=int, default=1, help="Concurrent requests (1 = sequential).")
 @click.option("--rate-limit", type=float, default=None, help="Max API calls per second.")
+@click.option(
+    "--sample-size",
+    type=int,
+    default=None,
+    help="Stratified sample size; overrides configured API sampling.",
+)
+@click.option("--stratify-by", default=None, help="Example metadata field for stratified sampling.")
+@click.option("--sample-seed", type=int, default=None, help="Seed for deterministic sampling.")
 @click.pass_context
 def run(
     ctx: click.Context,
@@ -159,6 +179,9 @@ def run(
     beta: float,
     max_workers: int,
     rate_limit: float | None,
+    sample_size: int | None,
+    stratify_by: str | None,
+    sample_seed: int | None,
 ) -> None:
     """Run a benchmark with one or more models.
 
@@ -180,13 +203,30 @@ def run(
     if model and models:
         raise click.UsageError("Cannot use both --model and --models together.")
 
-    config = ctx.obj.get("config") if ctx.obj else None
+    raw_config = ctx.obj.get("config") if ctx.obj else None
+    from llm_grammar_bench.config import BenchmarkConfig
 
-    # Resolve max_workers and rate_limit from config if not specified via CLI
+    config: BenchmarkConfig | None = raw_config if isinstance(raw_config, BenchmarkConfig) else None
+
+    # Resolve runtime options from config if not specified via CLI.
+    sample_apis_only = False
     if max_workers == 1 and config is not None:
         max_workers = config.evaluation.max_workers
     if rate_limit is None and config is not None:
         rate_limit = config.evaluation.rate_limit
+    if config is not None:
+        sampling_config = config.evaluation.api_sampling
+        if sample_size is None:
+            sample_size = sampling_config.sample_size
+            sample_apis_only = sample_size is not None
+        if stratify_by is None:
+            stratify_by = sampling_config.stratify_by
+        if sample_seed is None:
+            sample_seed = sampling_config.seed
+    if stratify_by is None:
+        stratify_by = "cefr"
+    if sample_seed is None:
+        sample_seed = 0
 
     model_list: list[str]
     if models:
@@ -217,6 +257,10 @@ def run(
             beta=beta,
             max_workers=max_workers,
             rate_limit=rate_limit,
+            sample_size=sample_size,
+            stratify_by=stratify_by,
+            sample_seed=sample_seed,
+            sample_apis_only=sample_apis_only,
         )
 
 
